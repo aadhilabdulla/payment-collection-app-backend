@@ -158,3 +158,66 @@ GET /api/payments/:accountNumber
 - HTTPS is handled via Nginx in production
 - API base URL is injected into frontend via environment variables
 
+---
+# CI/CD Pipeline Configuration
+This project uses GitHub Actions to automate deployment to an AWS EC2 instance using Docker. Every time code is pushed to the main branch, the pipeline automatically updates the server.
+
+## Architecture
+
+GitHub Actions: Triggered on push to main.
+
+SSH Connection: Uses an SSH Private Key to securely log into the EC2 instance.
+
+Automated Deployment:
+
+Pulls the latest code from GitHub.
+
+Rebuilds Docker images.
+
+Restarts containers using docker-compose.
+
+## Required Secrets
+
+To run this pipeline, the following secrets must be configured in Settings > Secrets and variables > Actions:
+
+Secret	Description
+REMOTE_HOST	The Public IP or Domain of your AWS EC2 instance.
+REMOTE_USER	The SSH username (default: ubuntu).
+EC2_SSH_KEY	The Private SSH Key (Starts with -----BEGIN OPENSSH PRIVATE KEY-----).
+
+## Workflow File (.github/workflows/deploy.yml)
+
+```
+name: Deploy to AWS EC2
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/payment-collection-app-backend
+            git pull origin main
+            docker compose up -d --build
+```
+## Server-Side Setup
+
+To allow the pipeline to run successfully, the EC2 instance was configured with:
+
+Docker Permissions: The ubuntu user was added to the docker group to run commands without sudo.
+
+SSH Auth: The public key matching EC2_SSH_KEY was added to ~/.ssh/authorized_keys.
+
+GitHub Access: The EC2's public key was added to GitHub Deploy Keys to allow git pull.
